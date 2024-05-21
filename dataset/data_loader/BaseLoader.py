@@ -387,13 +387,12 @@ class BaseLoader(Dataset):
                 reference_index = i // detection_freq
             else:  # use the first region obtrained from the first frame.
                 reference_index = 0
-            if use_face_detection:
-                if use_median_box:
-                    face_region = face_region_median
-                else:
-                    face_region = face_region_all[reference_index]
-                frame = frame[max(face_region[1], 0):min(face_region[1] + face_region[3], frame.shape[0]),
-                        max(face_region[0], 0):min(face_region[0] + face_region[2], frame.shape[1])]
+            if use_median_box:
+                face_region = face_region_median
+            else:
+                face_region = face_region_all[reference_index]
+            frame = frame[max(face_region[1], 0):min(face_region[1] + face_region[3], frame.shape[0]),
+                    max(face_region[0], 0):min(face_region[0] + face_region[2], frame.shape[1])]
             resized_frames[i] = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
         return resized_frames
 
@@ -409,9 +408,9 @@ class BaseLoader(Dataset):
             bvp_clips: all chunks of bvp frames
         """
 
-        clip_num = frames.shape[0] // chunk_length
-        frames_clips = [frames[i * chunk_length:(i + 1) * chunk_length] for i in range(clip_num)]
-        bvps_clips = [bvps[i * chunk_length:(i + 1) * chunk_length] for i in range(clip_num)]
+        clip_num = max(1, frames.shape[0] - chunk_length + 1)
+        frames_clips = [frames[i:i + chunk_length] for i in range(clip_num)]
+        bvps_clips = [bvps[i:i + chunk_length] for i in range(clip_num)]
         return np.array(frames_clips), np.array(bvps_clips)
 
     def save(self, frames_clips, bvps_clips, filename):
@@ -439,7 +438,7 @@ class BaseLoader(Dataset):
             count += 1
         return count
 
-    def save_multi_process(self, frames_clips, bvps_clips, filename):
+    def save_multi_process(self, frames_clips, bvps_clips, filename, hrs=None):
         """Save all the chunked data with multi-thread processing.
 
         Args:
@@ -452,18 +451,21 @@ class BaseLoader(Dataset):
         """
         if not os.path.exists(self.cached_path):
             os.makedirs(self.cached_path, exist_ok=True)
-        count = 0
         input_path_name_list = []
         label_path_name_list = []
+        assert (len(self.inputs) == len(self.labels))
+
+        if hrs is not None:
+            np.save(self.cached_path + os.sep + "{0}_raw_hrs.npy".format(filename), hrs)
+
         for i in range(len(bvps_clips)):
             assert (len(self.inputs) == len(self.labels))
-            input_path_name = self.cached_path + os.sep + "{0}_input{1}.npy".format(filename, str(count))
-            label_path_name = self.cached_path + os.sep + "{0}_label{1}.npy".format(filename, str(count))
+            input_path_name = self.cached_path + os.sep + "{0}_input{1}.npy".format(filename, str(i))
+            label_path_name = self.cached_path + os.sep + "{0}_label{1}.npy".format(filename, str(i))
             input_path_name_list.append(input_path_name)
             label_path_name_list.append(label_path_name)
             np.save(input_path_name, frames_clips[i])
             np.save(label_path_name, bvps_clips[i])
-            count += 1
         return input_path_name_list, label_path_name_list
 
     def multi_process_manager(self, data_dirs, config_preprocess, multi_process_quota=8):

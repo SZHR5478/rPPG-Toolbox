@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
+import os
 from evaluation.post_process import *
 from tqdm import tqdm
 from evaluation.BlandAltmanPy import BlandAltman
@@ -31,8 +32,10 @@ def read_hr_label(feed_dict, index):
 def _reform_data_from_dict(data, flatten=True):
     """Helper func for calculate metrics: reformat predictions and labels from dicts. """
     sort_data = sorted(data.items(), key=lambda x: x[0])
-    sort_data = [i[1] for i in sort_data]
-    sort_data = torch.cat(sort_data, dim=0)
+    chunk = len(sort_data[0][1])
+    total_len = sort_data[-1][0] + chunk
+    pre = torch.cat([sort_data[i][1] for i in range(0, len(sort_data), chunk)], dim=0)
+    sort_data = torch.cat([pre, sort_data[-1][1][len(pre) - total_len:]], dim=0) if total_len - len(pre) > 0 else pre
 
     if flatten:
         sort_data = np.reshape(sort_data.cpu(), (-1))
@@ -55,6 +58,8 @@ def calculate_metrics(predictions, labels, config):
         prediction = _reform_data_from_dict(predictions[index])
         label = _reform_data_from_dict(labels[index])
 
+        gt_hrs = np.load(config.TEST.DATA.CACHED_PATH + os.sep + "{0}_raw_hrs.npy".format(index)) if os.path.exists(config.TEST.DATA.CACHED_PATH + os.sep + "{0}_raw_hrs.npy".format(index)) else None
+
         video_frame_size = prediction.shape[0]
         if config.INFERENCE.EVALUATION_WINDOW.USE_SMALLER_WINDOW:
             window_frame_size = config.INFERENCE.EVALUATION_WINDOW.WINDOW_SIZE * config.TEST.DATA.FS
@@ -63,38 +68,39 @@ def calculate_metrics(predictions, labels, config):
         else:
             window_frame_size = video_frame_size
 
-        for i in range(0, len(prediction), window_frame_size):
-            pred_window = prediction[i:i+window_frame_size]
-            label_window = label[i:i+window_frame_size]
+        for i in range(0, len(prediction)):
+            if i >= window_frame_size - 1:
+                pred_window = prediction[i - window_frame_size + 1:i + 1]
+                label_window = label[i - window_frame_size + 1:i + 1]
 
-            if len(pred_window) < 9:
-                print(f"Window frame size of {len(pred_window)} is smaller than minimum pad length of 9. Window ignored!")
-                continue
+                if len(pred_window) < 9:
+                    print(f"Window frame size of {len(pred_window)} is smaller than minimum pad length of 9. Window ignored!")
+                    continue
 
-            if config.TEST.DATA.PREPROCESS.LABEL_TYPE == "Standardized" or \
-                    config.TEST.DATA.PREPROCESS.LABEL_TYPE == "Raw":
-                diff_flag_test = False
-            elif config.TEST.DATA.PREPROCESS.LABEL_TYPE == "DiffNormalized":
-                diff_flag_test = True
-            else:
-                raise ValueError("Unsupported label type in testing!")
-            
-            if config.INFERENCE.EVALUATION_METHOD == "peak detection":
-                gt_hr_peak, pred_hr_peak, SNR, macc = calculate_metric_per_video(
-                    pred_window, label_window, diff_flag=diff_flag_test, fs=config.TEST.DATA.FS, hr_method='Peak')
-                gt_hr_peak_all.append(gt_hr_peak)
-                predict_hr_peak_all.append(pred_hr_peak)
-                SNR_all.append(SNR)
-                MACC_all.append(macc)
-            elif config.INFERENCE.EVALUATION_METHOD == "FFT":
-                gt_hr_fft, pred_hr_fft, SNR, macc = calculate_metric_per_video(
-                    pred_window, label_window, diff_flag=diff_flag_test, fs=config.TEST.DATA.FS, hr_method='FFT')
-                gt_hr_fft_all.append(gt_hr_fft)
-                predict_hr_fft_all.append(pred_hr_fft)
-                SNR_all.append(SNR)
-                MACC_all.append(macc)
-            else:
-                raise ValueError("Inference evaluation method name wrong!")
+                if config.TEST.DATA.PREPROCESS.LABEL_TYPE == "Standardized" or \
+                        config.TEST.DATA.PREPROCESS.LABEL_TYPE == "Raw":
+                    diff_flag_test = False
+                elif config.TEST.DATA.PREPROCESS.LABEL_TYPE == "DiffNormalized":
+                    diff_flag_test = True
+                else:
+                    raise ValueError("Unsupported label type in testing!")
+
+                if config.INFERENCE.EVALUATION_METHOD == "peak detection":
+                    gt_hr_peak, pred_hr_peak, SNR, macc = calculate_metric_per_video(
+                        pred_window, label_window, diff_flag=diff_flag_test, fs=config.TEST.DATA.FS, hr_method='Peak')
+                    gt_hr_peak_all.append(gt_hr_peak) if gt_hrs is None else gt_hr_peak_all.append(gt_hrs[i])
+                    predict_hr_peak_all.append(pred_hr_peak)
+                    SNR_all.append(SNR)
+                    MACC_all.append(macc)
+                elif config.INFERENCE.EVALUATION_METHOD == "FFT":
+                    gt_hr_fft, pred_hr_fft, SNR, macc = calculate_metric_per_video(
+                        pred_window, label_window, diff_flag=diff_flag_test, fs=config.TEST.DATA.FS, hr_method='FFT')
+                    gt_hr_fft_all.append(gt_hr_fft) if gt_hrs is None else gt_hr_fft_all.append(gt_hrs[i])
+                    predict_hr_fft_all.append(pred_hr_fft)
+                    SNR_all.append(SNR)
+                    MACC_all.append(macc)
+                else:
+                    raise ValueError("Inference evaluation method name wrong!")
     
     # Filename ID to be used in any results files (e.g., Bland-Altman plots) that get saved
     if config.TOOLBOX_MODE == 'train_and_test':

@@ -38,7 +38,8 @@ def seed_worker(worker_id):
 def add_args(parser):
     """Adds arguments for parser."""
     parser.add_argument('--config_file', required=False,
-                        default="configs/train_configs/PURE_PURE_UBFC-rPPG_TSCAN_BASIC.yaml", type=str, help="The name of the model.")
+                        default="configs/train_configs/PURE_PURE_UBFC-rPPG_TSCAN_BASIC.yaml", type=str,
+                        help="The name of the model.")
     '''Neural Method Sample YAML LIST:
       SCAMPS_SCAMPS_UBFC-rPPG_TSCAN_BASIC.yaml
       SCAMPS_SCAMPS_UBFC-rPPG_DEEPPHYS_BASIC.yaml
@@ -88,7 +89,7 @@ def test(config, data_loader_dict):
     if config.MODEL.NAME == "Physnet":
         model_trainer = trainer.PhysnetTrainer.PhysnetTrainer(config, data_loader_dict)
     elif config.MODEL.NAME == "iBVPNet":
-        model_trainer = trainer.iBVPNetTrainer.iBVPNetTrainer(config, data_loader_dict)    
+        model_trainer = trainer.iBVPNetTrainer.iBVPNetTrainer(config, data_loader_dict)
     elif config.MODEL.NAME == "Tscan":
         model_trainer = trainer.TscanTrainer.TscanTrainer(config, data_loader_dict)
     elif config.MODEL.NAME == "EfficientPhys":
@@ -139,7 +140,7 @@ if __name__ == "__main__":
     print('Configuration:')
     print(config, end='\n\n')
 
-    data_loader_dict = dict() # dictionary of data loaders 
+    data_loader_dict = dict()  # dictionary of data loaders
     if config.TOOLBOX_MODE == "train_and_test":
         # train_loader
         if config.TRAIN.DATA.DATASET == "UBFC-rPPG":
@@ -158,6 +159,8 @@ if __name__ == "__main__":
             train_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
         elif config.TRAIN.DATA.DATASET == "iBVP":
             train_loader = data_loader.iBVPLoader.iBVPLoader
+        elif config.TRAIN.DATA.DATASET == "Self-Collected":
+            train_loader = data_loader.Self_Collected_Loader.Self_Collected_Loader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS and iBVP.")
@@ -198,12 +201,14 @@ if __name__ == "__main__":
             valid_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
         elif config.VALID.DATA.DATASET == "iBVP":
             valid_loader = data_loader.iBVPLoader.iBVPLoader
+        elif config.TRAIN.DATA.DATASET == "Self-Collected":
+            train_loader = data_loader.Self_Collected_Loader.Self_Collected_Loader
         elif config.VALID.DATA.DATASET is None and not config.TEST.USE_LAST_EPOCH:
             raise ValueError("Validation dataset not specified despite USE_LAST_EPOCH set to False!")
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS and iBVP")
-        
+
         # Create and initialize the valid dataloader given the correct toolbox mode,
         # a supported dataset name, and a valid dataset path
         if (config.VALID.DATA.DATASET and config.VALID.DATA.DATA_PATH and not config.TEST.USE_LAST_EPOCH):
@@ -240,14 +245,16 @@ if __name__ == "__main__":
             test_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
         elif config.TEST.DATA.DATASET == "iBVP":
             test_loader = data_loader.iBVPLoader.iBVPLoader
+        elif config.TRAIN.DATA.DATASET == "Self-Collected":
+            train_loader = data_loader.Self_Collected_Loader.Self_Collected_Loader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+ (Normal and BigSmall preprocessing), UBFC-PHYS and iBVP.")
-        
-        if config.TOOLBOX_MODE == "train_and_test" and config.TEST.USE_LAST_EPOCH:
-            print("Testing uses last epoch, validation dataset is not required.", end='\n\n')   
 
-        # Create and initialize the test dataloader given the correct toolbox mode,
+        if config.TOOLBOX_MODE == "train_and_test" and config.TEST.USE_LAST_EPOCH:
+            print("Testing uses last epoch, validation dataset is not required.", end='\n\n')
+
+            # Create and initialize the test dataloader given the correct toolbox mode,
         # a supported dataset name, and a valid dataset path
         if config.TEST.DATA.DATASET and config.TEST.DATA.DATA_PATH:
             test_data = test_loader(
@@ -281,10 +288,12 @@ if __name__ == "__main__":
             unsupervised_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
         elif config.UNSUPERVISED.DATA.DATASET == "iBVP":
             unsupervised_loader = data_loader.iBVPLoader.iBVPLoader
+        elif config.TRAIN.DATA.DATASET == "Self-Collected":
+            train_loader = data_loader.Self_Collected_Loader.Self_Collected_Loader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
                              SCAMPS, BP4D+, UBFC-PHYS and iBVP.")
-        
+
         unsupervised_data = unsupervised_loader(
             name="unsupervised",
             data_path=config.UNSUPERVISED.DATA.DATA_PATH,
@@ -299,7 +308,8 @@ if __name__ == "__main__":
         )
 
     else:
-        raise ValueError("Unsupported toolbox_mode! Currently support train_and_test or only_test or unsupervised_method.")
+        raise ValueError(
+            "Unsupported toolbox_mode! Currently support train_and_test or only_test or unsupervised_method.")
 
     if config.TOOLBOX_MODE == "train_and_test":
         train_and_test(config, data_loader_dict)
