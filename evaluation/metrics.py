@@ -6,6 +6,34 @@ from evaluation.post_process import *
 from tqdm import tqdm
 from evaluation.BlandAltmanPy import BlandAltman
 
+def save_hr_outputs(gt_hr_all, predict_hr_all, config):
+    output_dir = config.TEST.OUTPUT_SAVE_DIR
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
+    # Filename ID to be used in any output files that get saved
+    if config.TOOLBOX_MODE == 'train_and_test':
+        filename_id = config.TRAIN.MODEL_FILE_NAME
+    elif config.TOOLBOX_MODE == 'only_test':
+        model_file_root = config.INFERENCE.MODEL_PATH.split("/")[-1].split(".pth")[0]
+        filename_id = model_file_root + "_" + config.TEST.DATA.DATASET
+    else:
+        raise ValueError('Metrics.py evaluation only supports train_and_test and only_test!')
+
+    column_name, file_name = '', ''
+
+    if config.INFERENCE.EVALUATION_METHOD == "FFT":
+        column_name, file_name = 'fft_hr', '_gt_fft.csv'
+    else:
+        column_name, file_name = 'peak_hr', '_gt_peak.csv'
+
+    output_path = os.path.join(output_dir, filename_id + file_name)
+
+    pd.DataFrame({'gt_hr': gt_hr_all, column_name: predict_hr_all}).to_csv(output_path, index=False)
+
+    print('')
+    print('Saving hr outputs to:', output_path)
+
 def read_label(dataset):
     """Read manually corrected labels."""
     df = pd.read_csv("label/{0}_Comparison.csv".format(dataset))
@@ -114,6 +142,9 @@ def calculate_metrics(predictions, labels, config):
     if config.INFERENCE.EVALUATION_METHOD == "FFT":
         gt_hr_fft_all = np.array(gt_hr_fft_all)
         predict_hr_fft_all = np.array(predict_hr_fft_all)
+
+        save_hr_outputs(gt_hr_fft_all, predict_hr_fft_all, config)
+
         SNR_all = np.array(SNR_all)
         MACC_all = np.array(MACC_all)
         num_test_samples = len(predict_hr_fft_all)
@@ -164,6 +195,9 @@ def calculate_metrics(predictions, labels, config):
     elif config.INFERENCE.EVALUATION_METHOD == "peak detection":
         gt_hr_peak_all = np.array(gt_hr_peak_all)
         predict_hr_peak_all = np.array(predict_hr_peak_all)
+
+        save_hr_outputs(gt_hr_peak_all, predict_hr_peak_all, config)
+
         SNR_all = np.array(SNR_all)
         MACC_all = np.array(MACC_all)
         num_test_samples = len(predict_hr_peak_all)
