@@ -150,7 +150,7 @@ class Self_Collected_Loader(BaseLoader):
             gt_hrs = gt_hrs[:len(waves) // wave_fs]
             waves = waves[:wave_fs * len(gt_hrs)]
 
-        assert len(waves) // len(gt_hrs) * len(gt_hrs) == len(waves)
-        hrs = np.asarray([[hr] * wave_fs for hr in gt_hrs])
+        assert len(waves) // len(gt_hrs) == wave_fs
+        hrs = np.concatenate([[hr] * wave_fs for hr in gt_hrs], axis=-1)
 
         return waves, hrs

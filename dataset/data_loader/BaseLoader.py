@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from retinaface import RetinaFace   # Source code: https://github.com/serengil/retinaface
+from retinaface import RetinaFace  # Source code: https://github.com/serengil/retinaface
 
 
 class BaseLoader(Dataset):
@@ -143,8 +143,8 @@ class BaseLoader(Dataset):
         elif np.issubdtype(frames.dtype, np.floating) and np.min(frames) >= 0.0 and np.max(frames) <= 1.0:
             processed_frames = [(np.round(frame * 255)).astype(np.uint8)[..., :3] for frame in frames]
         else:
-            raise Exception(f'Loaded frames are of an incorrect type or range of values! '\
-            + f'Received frames of type {frames.dtype} and range {np.min(frames)} to {np.max(frames)}.')
+            raise Exception(f'Loaded frames are of an incorrect type or range of values! ' \
+                            + f'Received frames of type {frames.dtype} and range {np.min(frames)} to {np.max(frames)}.')
         return np.asarray(processed_frames)
 
     def generate_pos_psuedo_labels(self, frames, fs=30):
@@ -188,12 +188,12 @@ class BaseLoader(Dataset):
         pos_bvp = signal.filtfilt(b, a, bvp.astype(np.double))
 
         # apply hilbert normalization to normalize PPG amplitude
-        analytic_signal = signal.hilbert(pos_bvp) 
-        amplitude_envelope = np.abs(analytic_signal) # derive envelope signal
-        env_norm_bvp = pos_bvp/amplitude_envelope # normalize by env
+        analytic_signal = signal.hilbert(pos_bvp)
+        amplitude_envelope = np.abs(analytic_signal)  # derive envelope signal
+        env_norm_bvp = pos_bvp / amplitude_envelope  # normalize by env
 
-        return np.array(env_norm_bvp) # return POS psuedo labels
-    
+        return np.array(env_norm_bvp)  # return POS psuedo labels
+
     def preprocess_dataset(self, data_dirs, config_preprocess, begin, end):
         """Parses and preprocesses all the raw data based on split.
 
@@ -205,7 +205,7 @@ class BaseLoader(Dataset):
         """
         data_dirs_split = self.split_raw_data(data_dirs, begin, end)  # partition dataset 
         # send data directories to be processed
-        file_list_dict = self.multi_process_manager(data_dirs_split, config_preprocess) 
+        file_list_dict = self.multi_process_manager(data_dirs_split, config_preprocess)
         self.build_file_list(file_list_dict)  # build file list
         self.load_preprocessed_data()  # load all data and corresponding labels (sorted for consistency)
         print("Total Number of raw files preprocessed:", len(data_dirs_split), end='\n\n')
@@ -259,7 +259,7 @@ class BaseLoader(Dataset):
             frames_clips, bvps_clips = self.chunk(
                 data, bvps, config_preprocess.CHUNK_LENGTH)
         else:
-            frames_clips = np.array([data])
+            frames_clips = [data]
             bvps_clips = np.array([bvps])
 
         return frames_clips, bvps_clips
@@ -279,7 +279,7 @@ class BaseLoader(Dataset):
             # Use OpenCV's Haar Cascade algorithm implementation for face detection
             # This should only utilize the CPU
             detector = cv2.CascadeClassifier(
-            './dataset/haarcascade_frontalface_default.xml')
+                './dataset/haarcascade_frontalface_default.xml')
 
             # Computed face_zone(s) are in the form [x_coord, y_coord, width, height]
             # (x,y) corresponds to the top-left corner of the zone to define using
@@ -288,7 +288,7 @@ class BaseLoader(Dataset):
 
             if len(face_zone) < 1:
                 print("ERROR: No Face Detected")
-                face_box_coor = [0, 0, frame.shape[0], frame.shape[1]]
+                face_box_coor = [0, 0, frame.shape[1], frame.shape[0]]
             elif len(face_zone) >= 2:
                 # Find the index of the largest face zone
                 # The face zones are boxes, so the width and height are the same
@@ -322,17 +322,17 @@ class BaseLoader(Dataset):
                 # Find the center of the face zone
                 center_x = x + width // 2
                 center_y = y + height // 2
-                
+
                 # Determine the size of the square (use the maximum of width and height)
                 square_size = max(width, height)
-                
+
                 # Calculate the new coordinates for a square face zone
                 new_x = center_x - (square_size // 2)
                 new_y = center_y - (square_size // 2)
                 face_box_coor = [new_x, new_y, square_size, square_size]
             else:
                 print("ERROR: No Face Detected")
-                face_box_coor = [0, 0, frame.shape[0], frame.shape[1]]
+                face_box_coor = [0, 0, frame.shape[1], frame.shape[0]]
         else:
             raise ValueError("Unsupported face detection backend!")
 
@@ -343,7 +343,8 @@ class BaseLoader(Dataset):
             face_box_coor[3] = larger_box_coef * face_box_coor[3]
         return face_box_coor
 
-    def crop_face_resize(self, frames, use_face_detection, backend, use_larger_box, larger_box_coef, use_dynamic_detection, 
+    def crop_face_resize(self, frames, use_face_detection, backend, use_larger_box, larger_box_coef,
+                         use_dynamic_detection,
                          detection_freq, use_median_box, width, height):
         """Crop face and resize frames.
 
@@ -371,9 +372,10 @@ class BaseLoader(Dataset):
         # Perform face detection by num_dynamic_det" times.
         for idx in range(num_dynamic_det):
             if use_face_detection:
-                face_region_all.append(self.face_detection(frames[detection_freq * idx], backend, use_larger_box, larger_box_coef))
+                face_region_all.append(
+                    self.face_detection(frames[detection_freq * idx], backend, use_larger_box, larger_box_coef))
             else:
-                face_region_all.append([0, 0, frames.shape[1], frames.shape[2]])
+                face_region_all.append([0, 0, frames.shape[2], frames.shape[1]])
         face_region_all = np.asarray(face_region_all, dtype='int')
         if use_median_box:
             # Generate a median bounding box based on all detected face regions
@@ -411,7 +413,7 @@ class BaseLoader(Dataset):
         clip_num = max(1, frames.shape[0] - chunk_length + 1)
         frames_clips = [frames[i:i + chunk_length] for i in range(clip_num)]
         bvps_clips = [bvps[i:i + chunk_length] for i in range(clip_num)]
-        return np.array(frames_clips), np.array(bvps_clips)
+        return frames_clips, np.array(bvps_clips)
 
     def save(self, frames_clips, bvps_clips, filename):
         """Save all the chunked data.
@@ -464,7 +466,7 @@ class BaseLoader(Dataset):
             label_path_name = self.cached_path + os.sep + "{0}_label{1}.npy".format(filename, str(i))
             input_path_name_list.append(input_path_name)
             label_path_name_list.append(label_path_name)
-            np.save(input_path_name, frames_clips[i])
+            np.save(input_path_name, np.array(frames_clips[i]))
             np.save(label_path_name, bvps_clips[i])
         return input_path_name_list, label_path_name_list
 
@@ -495,8 +497,8 @@ class BaseLoader(Dataset):
             while process_flag:  # ensure that every i creates a process
                 if running_num < multi_process_quota:  # in case of too many processes
                     # send data to be preprocessing task
-                    p = Process(target=self.preprocess_dataset_subprocess, 
-                                args=(data_dirs,config_preprocess, i, file_list_dict))
+                    p = Process(target=self.preprocess_dataset_subprocess,
+                                args=(data_dirs, config_preprocess, i, file_list_dict))
                     p.start()
                     p_list.append(p)
                     running_num += 1
