@@ -201,7 +201,7 @@ if __name__ == "__main__":
             valid_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
         elif config.VALID.DATA.DATASET == "iBVP":
             valid_loader = data_loader.iBVPLoader.iBVPLoader
-        elif config.TRAIN.DATA.DATASET == "Self-Collected":
+        elif config.VALID.DATA.DATASET == "Self-Collected":
             valid_loader = data_loader.Self_Collected_Loader.Self_Collected_Loader
         elif config.VALID.DATA.DATASET is None and not config.TEST.USE_LAST_EPOCH:
             raise ValueError("Validation dataset not specified despite USE_LAST_EPOCH set to False!")
@@ -245,7 +245,7 @@ if __name__ == "__main__":
             test_loader = data_loader.UBFCPHYSLoader.UBFCPHYSLoader
         elif config.TEST.DATA.DATASET == "iBVP":
             test_loader = data_loader.iBVPLoader.iBVPLoader
-        elif config.TRAIN.DATA.DATASET == "Self-Collected":
+        elif config.TEST.DATA.DATASET == "Self-Collected":
             test_loader = data_loader.Self_Collected_Loader.Self_Collected_Loader
         else:
             raise ValueError("Unsupported dataset! Currently supporting UBFC-rPPG, PURE, MMPD, \
