@@ -37,9 +37,9 @@ class EfficientPhysTrainer(BaseTrainer):
                 self.device)
             self.model = torch.nn.DataParallel(self.model, device_ids=list(range(config.NUM_OF_GPU_TRAIN)))
             if config.TRAIN.PRE_MODEL_PATH and os.path.exists(config.TRAIN.PRE_MODEL_PATH):
+                self.model.load_state_dict(torch.load(config.TRAIN.PRE_MODEL_PATH))
                 print('')
                 print(f"===Load Pre-Training Model {config.TRAIN.PRE_MODEL_PATH} Success===")
-                self.model.load_state_dict(torch.load(config.TRAIN.PRE_MODEL_PATH))
 
             self.num_train_batches = len(data_loader["train"])
             self.criterion = torch.nn.MSELoss()
