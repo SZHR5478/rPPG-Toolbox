@@ -12,6 +12,7 @@ import os
 import cv2
 import numpy as np
 from dataset.data_loader.BaseLoader import BaseLoader
+from pathlib import Path
 import pandas as pd
 
 
@@ -131,7 +132,7 @@ class Self_Collected_Loader(BaseLoader):
     def read_video(video_file):
         """Reads a video file, returns frames(T, H, W, 3) """
         frames = list()
-        all_png = sorted(glob.glob(video_file + '*.png'))
+        all_png = sorted(glob.glob(video_file + '*.png'), key=lambda png_path: int(Path(png_path).stem))
         for png_path in all_png:
             img = cv2.imread(png_path)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
