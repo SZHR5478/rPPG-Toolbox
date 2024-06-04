@@ -620,9 +620,7 @@ class BaseLoader(Dataset):
     @staticmethod
     def standardized_data(data):
         """Z-score standardization for video data."""
-        data = data - np.mean(data)
-        data = data / np.std(data)
-        data[np.isnan(data)] = 0
+        data = data / 255.0
         return data
 
     @staticmethod
