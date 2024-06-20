@@ -31,7 +31,7 @@ class EfficientPhysTrainer(BaseTrainer):
         self.config = config
         self.min_valid_loss = None
         self.best_epoch = 0
-        
+
         if config.TOOLBOX_MODE == "train_and_test":
             self.model = EfficientPhys(frame_depth=self.frame_depth, img_size=config.TRAIN.DATA.PREPROCESS.RESIZE.H).to(
                 self.device)
@@ -47,7 +47,8 @@ class EfficientPhysTrainer(BaseTrainer):
                 self.model.parameters(), lr=config.TRAIN.LR, weight_decay=0)
             # See more details on the OneCycleLR scheduler here: https://pytorch.org/docs/stable/generated/torch.optim.lr_scheduler.OneCycleLR.html
             self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
-                self.optimizer, max_lr=config.TRAIN.LR, epochs=config.TRAIN.EPOCHS, steps_per_epoch=self.num_train_batches)
+                self.optimizer, max_lr=config.TRAIN.LR, epochs=config.TRAIN.EPOCHS,
+                steps_per_epoch=self.num_train_batches)
         elif config.TOOLBOX_MODE == "only_test":
             self.model = EfficientPhys(frame_depth=self.frame_depth, img_size=config.TEST.DATA.PREPROCESS.RESIZE.H).to(
                 self.device)
@@ -76,16 +77,18 @@ class EfficientPhysTrainer(BaseTrainer):
                 data, labels = batch[0].to(
                     self.device), batch[1].to(self.device)
                 N, D, C, H, W = data.shape
-                data = data.view(N * D, C, H, W)
-                labels = labels.view(-1, 1)
-                data = data[:(N * D) // self.base_len * self.base_len]
+                labels = labels.view(N, D, 1)
+                data = data[:, : D // self.base_len * self.base_len, :, :, :]
                 # Add one more frame for EfficientPhys since it does torch.diff for the input
-                last_frame = torch.unsqueeze(data[-1, :, :, :], 0).repeat(self.num_of_gpu, 1, 1, 1)
-                data = torch.cat((data, last_frame), 0)
-                labels = labels[:(N * D) // self.base_len * self.base_len]
+                last_frame = torch.unsqueeze(data[:, -1, :, :, :], 1)
+                data = torch.cat((data, last_frame), 1)
+                labels = labels[:, :D // self.base_len * self.base_len, :]
                 self.optimizer.zero_grad()
-                pred_ppg = self.model(data)
-                loss = self.criterion(pred_ppg, labels)
+                loss = 0.0
+                for single_data, single_lable in zip(data, labels):
+                    single_pred_ppg = self.model(single_data)
+                    single_loss = self.criterion(single_pred_ppg, single_lable)
+                    loss += single_loss
                 loss.backward()
 
                 # Append the current learning rate to the list
@@ -105,19 +108,21 @@ class EfficientPhysTrainer(BaseTrainer):
             mean_training_losses.append(np.mean(train_loss))
 
             self.save_model(epoch)
-            if not self.config.TEST.USE_LAST_EPOCH: 
+            if not self.config.TEST.USE_LAST_EPOCH:
                 valid_loss = self.valid(data_loader)
                 mean_valid_losses.append(valid_loss)
                 print('validation loss: ', valid_loss)
                 if self.min_valid_loss is None:
                     self.min_valid_loss = valid_loss
                     self.best_epoch = epoch
+                    self.save_model(self.best_epoch, if__best=True)
                     print("Update best model! Best epoch: {}".format(self.best_epoch))
                 elif (valid_loss < self.min_valid_loss):
                     self.min_valid_loss = valid_loss
                     self.best_epoch = epoch
+                    self.save_model(self.best_epoch, if__best=True)
                     print("Update best model! Best epoch: {}".format(self.best_epoch))
-        if not self.config.TEST.USE_LAST_EPOCH: 
+        if not self.config.TEST.USE_LAST_EPOCH:
             print("best trained epoch: {}, min_val_loss: {}".format(self.best_epoch, self.min_valid_loss))
         if self.config.TRAIN.PLOT_LOSSES_AND_LR:
             self.plot_losses_and_lrs(mean_training_losses, mean_valid_losses, lrs, self.config)
@@ -139,15 +144,18 @@ class EfficientPhysTrainer(BaseTrainer):
                 data_valid, labels_valid = valid_batch[0].to(
                     self.device), valid_batch[1].to(self.device)
                 N, D, C, H, W = data_valid.shape
-                data_valid = data_valid.view(N * D, C, H, W)
-                labels_valid = labels_valid.view(-1, 1)
-                data_valid = data_valid[:(N * D) // self.base_len * self.base_len]
+                labels_valid = labels_valid.view(N, D, 1)
+                data_valid = data_valid[:, : D // self.base_len * self.base_len, :, :, :]
                 # Add one more frame for EfficientPhys since it does torch.diff for the input
-                last_frame = torch.unsqueeze(data_valid[-1, :, :, :], 0).repeat(self.num_of_gpu, 1, 1, 1)
-                data_valid = torch.cat((data_valid, last_frame), 0)
-                labels_valid = labels_valid[:(N * D) // self.base_len * self.base_len]
-                pred_ppg_valid = self.model(data_valid)
-                loss = self.criterion(pred_ppg_valid, labels_valid)
+                last_frame = torch.unsqueeze(data_valid[:, -1, :, :, :], 1)
+                data_valid = torch.cat((data_valid, last_frame), 1)
+                labels_valid = labels_valid[:, :D // self.base_len * self.base_len, :]
+
+                loss = 0.0
+                for single_data_valid, single_lable_valid in zip(data_valid, labels_valid):
+                    single_pred_ppg_valid = self.model(single_data_valid)
+                    single_loss = self.criterion(single_pred_ppg_valid, single_lable_valid)
+                    loss += single_loss
                 valid_loss.append(loss.item())
                 valid_step += 1
                 vbar.set_postfix(loss=loss.item())
@@ -172,7 +180,7 @@ class EfficientPhysTrainer(BaseTrainer):
         else:
             if self.config.TEST.USE_LAST_EPOCH:
                 last_epoch_model_path = os.path.join(
-                self.model_dir, self.model_file_name + '_Epoch' + str(self.max_epoch_num - 1) + '.pth')
+                    self.model_dir, self.model_file_name + '_Epoch' + str(self.max_epoch_num - 1) + '.pth')
                 print("Testing uses last epoch as non-pretrained model!")
                 print(last_epoch_model_path)
                 self.model.load_state_dict(torch.load(last_epoch_model_path))
@@ -192,14 +200,13 @@ class EfficientPhysTrainer(BaseTrainer):
                 data_test, labels_test = test_batch[0].to(
                     self.config.DEVICE), test_batch[1].to(self.config.DEVICE)
                 N, D, C, H, W = data_test.shape
-                data_test = data_test.view(N * D, C, H, W)
-                labels_test = labels_test.view(-1, 1)
-                data_test = data_test[:(N * D) // self.base_len * self.base_len]
+                labels_test = labels_test.view(N, D, 1)
+                data_test = data_test[:, : D // self.base_len * self.base_len, :, :, :]
                 # Add one more frame for EfficientPhys since it does torch.diff for the input
-                last_frame = torch.unsqueeze(data_test[-1, :, :, :], 0).repeat(self.num_of_gpu, 1, 1, 1)
-                data_test = torch.cat((data_test, last_frame), 0)
-                labels_test = labels_test[:(N * D) // self.base_len * self.base_len]
-                pred_ppg_test = self.model(data_test)
+                last_frame = torch.unsqueeze(data_test[:, -1, :, :, :], 1)
+                data_test = torch.cat((data_test, last_frame), 1)
+                labels_test = labels_test[:, :D // self.base_len * self.base_len, :]
+                pred_ppg_test = torch.stack([self.model(single_data_test) for single_data_test in data_test])
 
                 if self.config.TEST.OUTPUT_SAVE_DIR:
                     labels_test = labels_test.cpu()
@@ -211,18 +218,24 @@ class EfficientPhysTrainer(BaseTrainer):
                     if subj_index not in predictions.keys():
                         predictions[subj_index] = dict()
                         labels[subj_index] = dict()
-                    predictions[subj_index][sort_index] = pred_ppg_test[idx * self.chunk_len:(idx + 1) * self.chunk_len]
-                    labels[subj_index][sort_index] = labels_test[idx * self.chunk_len:(idx + 1) * self.chunk_len]
+                    predictions[subj_index][sort_index] = pred_ppg_test[idx]
+                    labels[subj_index][sort_index] = labels_test[idx]
 
         print('')
         calculate_metrics(predictions, labels, self.config)
-        if self.config.TEST.OUTPUT_SAVE_DIR: # saving test outputs
+        if self.config.TEST.OUTPUT_SAVE_DIR:  # saving test outputs
             self.save_test_outputs(predictions, labels, self.config)
 
-    def save_model(self, index):
+    def save_model(self, index, if__best=False):
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-        model_path = os.path.join(
-            self.model_dir, self.model_file_name + '_Epoch' + str(index) + '.pth')
-        torch.save(self.model.state_dict(), model_path)
-        print('Saved Model Path: ', model_path)
+        if not if__best:
+            model_path = os.path.join(
+                self.model_dir, self.model_file_name + '_Epoch' + str(index) + '.pth')
+            torch.save(self.model.state_dict(), model_path)
+            print('Saved Model Path: ', model_path)
+        else:
+            model_path = os.path.join(
+                self.model_dir, self.model_file_name + '_Epoch(BEST)' + str(index) + '.pth')
+            torch.save(self.model.state_dict(), model_path)
+            print('Saved BEST Model Path: ', model_path)

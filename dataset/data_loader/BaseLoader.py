@@ -246,10 +246,8 @@ class BaseLoader(Dataset):
             else:
                 raise ValueError("Unsupported data type!")
         data = np.concatenate(data, axis=-1)  # concatenate all channels
-        if config_preprocess.LABEL_TYPE == "Raw":
+        if config_preprocess.LABEL_TYPE == "Raw" or config_preprocess.LABEL_TYPE == "DiffNormalized":
             pass
-        elif config_preprocess.LABEL_TYPE == "DiffNormalized":
-            bvps = BaseLoader.diff_normalize_label(bvps)
         elif config_preprocess.LABEL_TYPE == "Standardized":
             bvps = BaseLoader.standardized_label(bvps)
         else:
@@ -261,6 +259,9 @@ class BaseLoader(Dataset):
         else:
             frames_clips = [data]
             bvps_clips = np.array([bvps])
+
+        if config_preprocess.LABEL_TYPE == "DiffNormalized":
+            bvps_clips = BaseLoader.diff_normalize_label(bvps_clips)
 
         return frames_clips, bvps_clips
 
@@ -609,13 +610,16 @@ class BaseLoader(Dataset):
         return diffnormalized_data
 
     @staticmethod
-    def diff_normalize_label(label):
+    def diff_normalize_label(labels):
         """Calculate discrete difference in labels along the time-axis and normalize by its standard deviation."""
-        diff_label = np.diff(label, axis=0)
-        diffnormalized_label = diff_label / np.std(diff_label)
-        diffnormalized_label = np.append(diffnormalized_label, np.zeros(1), axis=0)
-        diffnormalized_label[np.isnan(diffnormalized_label)] = 0
-        return diffnormalized_label
+        diffnormalized_labels = []
+        for label in labels:
+            diff_label = np.diff(label, axis=0)
+            diffnormalized_label = diff_label / np.std(diff_label)
+            diffnormalized_label = np.append(diffnormalized_label, np.zeros(1), axis=0)
+            diffnormalized_label[np.isnan(diffnormalized_label)] = 0
+            diffnormalized_labels.append(diffnormalized_label)
+        return np.array(diffnormalized_labels)
 
     @staticmethod
     def standardized_data(data):
