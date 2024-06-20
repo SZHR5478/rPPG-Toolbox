@@ -229,13 +229,12 @@ class EfficientPhysTrainer(BaseTrainer):
     def save_model(self, index, if__best=False):
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-        if not if__best:
-            model_path = os.path.join(
-                self.model_dir, self.model_file_name + '_Epoch' + str(index) + '.pth')
+        model_path = os.path.join(
+            self.model_dir, self.model_file_name + '_Epoch' + str(index) + '.pth')
+        if if__best:
+            best_model_path = os.path.join(self.model_dir, self.model_file_name + '_Epoch(BEST)' + str(index) + '.pth')
+            os.rename(model_path, best_model_path)
+            print('Saved BEST Model Path: ', best_model_path)
+        else:
             torch.save(self.model.state_dict(), model_path)
             print('Saved Model Path: ', model_path)
-        else:
-            model_path = os.path.join(
-                self.model_dir, self.model_file_name + '_Epoch(BEST)' + str(index) + '.pth')
-            torch.save(self.model.state_dict(), model_path)
-            print('Saved BEST Model Path: ', model_path)
