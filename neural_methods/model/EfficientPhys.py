@@ -93,11 +93,11 @@ class EfficientPhys(nn.Module):
         self.batch_norm = nn.BatchNorm2d(3)
         self.channel = channel
 
-    def forward(self, inputs, params=None):
-        inputs = torch.diff(inputs, dim=0)
-        inputs = self.batch_norm(inputs)
+    def raw_forward(self, input):
+        input = torch.diff(input, dim=0)
+        input = self.batch_norm(input)
 
-        network_input = self.TSM_1(inputs)
+        network_input = self.TSM_1(input)
         d1 = torch.tanh(self.motion_conv1(network_input))
         d1 = self.TSM_2(d1)
         d2 = torch.tanh(self.motion_conv2(d1))
@@ -126,3 +126,9 @@ class EfficientPhys(nn.Module):
         out = self.final_dense_2(d11)
 
         return out
+
+    def forward(self, inputs):
+        outs = []
+        for input in inputs:
+            outs.append(self.raw_forward(input))
+        return torch.stack(outs)

@@ -84,11 +84,8 @@ class EfficientPhysTrainer(BaseTrainer):
                 data = torch.cat((data, last_frame), 1)
                 labels = labels[:, :D // self.base_len * self.base_len, :]
                 self.optimizer.zero_grad()
-                loss = 0.0
-                for single_data, single_lable in zip(data, labels):
-                    single_pred_ppg = self.model(single_data)
-                    single_loss = self.criterion(single_pred_ppg, single_lable)
-                    loss += single_loss
+                pred_ppg = self.model(data)
+                loss = self.criterion(pred_ppg, labels)
                 loss.backward()
 
                 # Append the current learning rate to the list
@@ -151,11 +148,8 @@ class EfficientPhysTrainer(BaseTrainer):
                 data_valid = torch.cat((data_valid, last_frame), 1)
                 labels_valid = labels_valid[:, :D // self.base_len * self.base_len, :]
 
-                loss = 0.0
-                for single_data_valid, single_lable_valid in zip(data_valid, labels_valid):
-                    single_pred_ppg_valid = self.model(single_data_valid)
-                    single_loss = self.criterion(single_pred_ppg_valid, single_lable_valid)
-                    loss += single_loss
+                pred_ppg_valid = self.model(data_valid)
+                loss = self.criterion(pred_ppg_valid, labels_valid)
                 valid_loss.append(loss.item())
                 valid_step += 1
                 vbar.set_postfix(loss=loss.item())
@@ -206,7 +200,7 @@ class EfficientPhysTrainer(BaseTrainer):
                 last_frame = torch.unsqueeze(data_test[:, -1, :, :, :], 1)
                 data_test = torch.cat((data_test, last_frame), 1)
                 labels_test = labels_test[:, :D // self.base_len * self.base_len, :]
-                pred_ppg_test = torch.stack([self.model(single_data_test) for single_data_test in data_test])
+                pred_ppg_test = self.model(data_test)
 
                 if self.config.TEST.OUTPUT_SAVE_DIR:
                     labels_test = labels_test.cpu()
