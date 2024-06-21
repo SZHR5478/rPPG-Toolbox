@@ -144,14 +144,15 @@ class Self_Collected_Loader(BaseLoader):
         waves = pd.read_csv(bvp_file)['Wave'].to_numpy()
         gt_hrs = pd.read_csv(os.path.splitext(bvp_file)[0][:-5] + ".csv")['PULSE'].to_numpy()
 
-        if len(waves) // len(gt_hrs) >= wave_fs:
-            waves = waves[:wave_fs * len(gt_hrs)]
-            gt_hrs = gt_hrs[:len(waves) // wave_fs]
-        else:
-            gt_hrs = gt_hrs[:len(waves) // wave_fs]
-            waves = waves[:wave_fs * len(gt_hrs)]
+        if len(waves) != len(gt_hrs):
+            if len(waves) // len(gt_hrs) >= wave_fs:
+                waves = waves[:wave_fs * len(gt_hrs)]
+                gt_hrs = gt_hrs[:len(waves) // wave_fs]
+            else:
+                gt_hrs = gt_hrs[:len(waves) // wave_fs]
+                waves = waves[:wave_fs * len(gt_hrs)]
 
-        assert len(waves) // len(gt_hrs) == wave_fs
-        hrs = np.concatenate([[hr] * wave_fs for hr in gt_hrs], axis=-1)
+            assert len(waves) // len(gt_hrs) == wave_fs
+            gt_hrs = np.concatenate([[hr] * wave_fs for hr in gt_hrs], axis=-1)
 
-        return waves, hrs
+        return waves, gt_hrs
